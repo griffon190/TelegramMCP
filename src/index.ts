@@ -185,7 +185,14 @@ const transports: Record<string, SSEServerTransport> = {};
 
 app.get("/sse", async (req, res) => {
   console.error("New SSE connection request received");
-  const transport = new SSEServerTransport("/messages", res);
+
+  // Dynamically resolve protocol and host for absolute URL resolution
+  const protocol = (req.headers["x-forwarded-proto"] as string) || req.protocol;
+  const host = (req.headers["x-forwarded-host"] as string) || req.get("host");
+  const messageUrl = `${protocol}://${host}/messages`;
+
+  console.error(`Message endpoint set to: ${messageUrl}`);
+  const transport = new SSEServerTransport(messageUrl, res);
   transports[transport.sessionId] = transport;
 
   res.on("close", () => {
@@ -209,8 +216,8 @@ app.post("/messages", async (req, res) => {
 });
 
 async function main() {
-  const port = process.env.PORT || 3000;
-  app.listen(port, () => {
+  const port = Number(process.env.PORT) || 3000;
+  app.listen(port, "0.0.0.0", () => {
     console.error(`Telegram MCP server running on SSE at http://localhost:${port}`);
     console.error(`SSE endpoint: http://localhost:${port}/sse`);
   });
