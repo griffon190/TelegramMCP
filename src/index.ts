@@ -209,19 +209,36 @@ app.get("/sse", async (req, res) => {
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no");
 
-    // res.writeをオーバーライドして、書き込みのたびに自動的に1KBのパディングコメントを付与
-    const originalWrite = res.write.bind(res);
-    res.write = (chunk: any, encoding?: any, callback?: any) => {
-      const result = originalWrite(chunk, encoding, callback);
-      // プロキシのバッファを押し出しつつ、パーサーを壊さない1KBのパディング
-      originalWrite(":" + " ".repeat(1024) + "\n\n");
-      return result;
-    };
-
     // Dynamically resolve protocol and host for absolute URL resolution
     const protocol = (req.headers["x-forwarded-proto"] as string) || req.protocol;
     const host = (req.headers["x-forwarded-host"] as string) || req.get("host");
     const messageUrl = `${protocol}://${host}/messages`;
+
+    // res.writeをオーバーライドして、データ書き換えとパディング付与を自動化
+    const originalWrite = res.write.bind(res);
+    res.write = (chunk: any, encoding?: any, callback?: any) => {
+      let dataStr = "";
+      let isBuffer = false;
+      
+      if (typeof chunk === "string") {
+        dataStr = chunk;
+      } else if (Buffer.isBuffer(chunk)) {
+        dataStr = chunk.toString("utf8");
+        isBuffer = true;
+      }
+
+      // 相対URL (/messages) を完全な絶対URL (https://.../messages) に強制書き換えするハック
+      if (dataStr.includes("event: endpoint") && dataStr.includes("data: /messages")) {
+        console.error("Rewriting endpoint event from relative path to absolute URL");
+        dataStr = dataStr.replace("data: /messages", `data: ${messageUrl}`);
+        chunk = isBuffer ? Buffer.from(dataStr, "utf8") : dataStr;
+      }
+
+      const result = originalWrite(chunk, encoding, callback);
+      // プロキシ의 バッファを押し出しつつ、パーサーを壊さない1KBのパディング
+      originalWrite(":" + " ".repeat(1024) + "\n\n");
+      return result;
+    };
 
     console.error(`Message endpoint set to: ${messageUrl}`);
     const transport = new SSEServerTransport(messageUrl, res);
