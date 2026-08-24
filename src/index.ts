@@ -196,14 +196,27 @@ app.get("/sse", async (req, res) => {
   console.error("New SSE connection request received");
 
   try {
+    // 既存の古い接続がある場合は、新しいトランスポートを接続する前に確実にクローズして初期化する
+    try {
+      await server.close();
+    } catch (e) {
+      // 未接続時のエラー（Already closedなど）は無視
+    }
+
     // Prevent proxies (like Nginx on Render.com) from buffering the event stream
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no");
 
-    // Send 2KB of dummy padding space (SSE comment) to bypass proxy buffering (Render/Cloudflare)
-    res.write(":" + " ".repeat(2048) + "\n\n");
+    // res.writeをオーバーライドして、書き込みのたびに自動的に4KBのパディングコメントを付与
+    const originalWrite = res.write.bind(res);
+    res.write = (chunk: any, encoding?: any, callback?: any) => {
+      const result = originalWrite(chunk, encoding, callback);
+      // プロキシのバッファを強制的に押し出すための4KBパディング
+      originalWrite(":" + " ".repeat(4096) + "\n\n");
+      return result;
+    };
 
     // Dynamically resolve protocol and host for absolute URL resolution
     const protocol = (req.headers["x-forwarded-proto"] as string) || req.protocol;
@@ -220,6 +233,9 @@ app.get("/sse", async (req, res) => {
     });
 
     await server.connect(transport);
+
+    // 接続が確立された「後」に、初期接続を確立するためのパディングを即時送信
+    res.write(":");
   } catch (error) {
     console.error("Error in /sse handler:", error);
     if (!res.headersSent) {
