@@ -220,14 +220,22 @@ app.get("/sse", async (req, res) => {
 
 app.post("/messages", async (req, res) => {
   const sessionId = req.query.sessionId as string;
+  console.error(`POST /messages received. Session ID: ${sessionId}`);
   const transport = transports[sessionId];
 
   if (!transport) {
+    console.error(`POST /messages error: Session ${sessionId} not found or expired`);
     res.status(400).send("Session not found or expired");
     return;
   }
 
-  await transport.handlePostMessage(req, res);
+  try {
+    await transport.handlePostMessage(req, res);
+    console.error(`POST /messages handled successfully for Session ID: ${sessionId}`);
+  } catch (error) {
+    console.error(`POST /messages handler error:`, error);
+    res.status(500).send("Internal server error");
+  }
 });
 
 async function main() {
