@@ -170,13 +170,13 @@ app.set("trust proxy", true);
 
 // Enable CORS for MCP clients
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-  } else {
-    res.setHeader("Access-Control-Allow-Origin", "*");
+  let origin = req.headers.origin;
+  if (!origin) {
+    // Originヘッダーが空の場合でも、Geminiからのアクセスを許可するためにデフォルト値を設定
+    origin = "https://gemini.google.com";
   }
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
   if (req.method === "OPTIONS") {
@@ -209,12 +209,12 @@ app.get("/sse", async (req, res) => {
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no");
 
-    // res.writeをオーバーライドして、書き込みのたびに自動的に4KBのパディングコメントを付与
+    // res.writeをオーバーライドして、書き込みのたびに自動的に1KBのパディングコメントを付与
     const originalWrite = res.write.bind(res);
     res.write = (chunk: any, encoding?: any, callback?: any) => {
       const result = originalWrite(chunk, encoding, callback);
-      // プロキシのバッファを強制的に押し出すための4KBパディング
-      originalWrite(":" + " ".repeat(4096) + "\n\n");
+      // プロキシのバッファを押し出しつつ、パーサーを壊さない1KBのパディング
+      originalWrite(":" + " ".repeat(1024) + "\n\n");
       return result;
     };
 
