@@ -1,11 +1,12 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import TelegramBot from "node-telegram-bot-api";
 import dotenv from "dotenv";
+import express from "express";
 
 dotenv.config();
 
@@ -162,10 +163,57 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-async function main() {
-  const transport = new StdioServerTransport();
+const app = express();
+
+// Enable CORS for MCP clients
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") {
+    res.sendStatus(200);
+    return;
+  }
+  next();
+});
+
+// Parse JSON request bodies (needed for /messages endpoint)
+app.use(express.json());
+
+// Keep track of active transports
+const transports: Record<string, SSEServerTransport> = {};
+
+app.get("/sse", async (req, res) => {
+  console.error("New SSE connection request received");
+  const transport = new SSEServerTransport("/messages", res);
+  transports[transport.sessionId] = transport;
+
+  res.on("close", () => {
+    console.error(`Session ${transport.sessionId} closed`);
+    delete transports[transport.sessionId];
+  });
+
   await server.connect(transport);
-  console.error("Telegram MCP server running on stdio");
+});
+
+app.post("/messages", async (req, res) => {
+  const sessionId = req.query.sessionId as string;
+  const transport = transports[sessionId];
+
+  if (!transport) {
+    res.status(400).send("Session not found or expired");
+    return;
+  }
+
+  await transport.handlePostMessage(req, res);
+});
+
+async function main() {
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
+    console.error(`Telegram MCP server running on SSE at http://localhost:${port}`);
+    console.error(`SSE endpoint: http://localhost:${port}/sse`);
+  });
 }
 
 main().catch((error) => {

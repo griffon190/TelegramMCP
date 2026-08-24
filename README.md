@@ -45,30 +45,36 @@ Gemini Spark や Claude Desktop などの MCP（Model Context Protocol）クラ�
 
 ---
 
-## MCP クライアントへの登録方法
+## サーバーの起動とMCPクライアントへの登録方法
 
-### 1. Claude Desktop の場合
-設定ファイル（例: `AppData\Roaming\Claude\claude_desktop_config.json`）に以下のようにサーバーを追加します。
+### 1. サーバーの起動
+ローカルで起動する場合は、依存関係をインストール、ビルドした後に以下のように起動します。
+```bash
+npm start
+```
+デフォルトではポート `3000` でサーバーが起動し、以下のエンドポイントが利用可能になります。
+- SSEエンドポイント: `http://localhost:3000/sse`
+
+ポート番号を変更したい場合は、環境変数 `PORT` を指定して起動するか、`.env` ファイルに `PORT=8080` のように追記してください。
+
+### 2. MCP クライアントへの登録
+
+#### Claude Desktop の場合
+設定ファイル（例: `AppData\Roaming\Claude\claude_desktop_config.json`）に以下のように SSE サーバーを追加します。
 
 ```json
 {
   "mcpServers": {
     "telegram-mcp": {
-      "command": "node",
-      "args": ["c:/Users/佐藤　祐二/source/repos/TelegramMCP/build/index.js"],
-      "env": {
-        "TELEGRAM_BOT_TOKEN": "あなたのボットのトークン",
-        "TELEGRAM_DEFAULT_CHAT_ID": "あなたのデフォルトのチャットID"
-      }
+      "type": "sse",
+      "url": "http://localhost:3000/sse"
     }
   }
 }
 ```
-> ※ パスは実際の環境に合わせて適切に変更してください。
 
-### 2. Gemini Spark の場合
-Gemini Spark の「カスタムアプリ（Custom apps）」またはツール設定画面において、本MCPサーバーの起動コマンド `node <ビルド済みJSの絶対パス>` を登録します。
-環境変数 `TELEGRAM_BOT_TOKEN` を設定した上で起動するように構成してください。
+#### Gemini Spark 等のクライアントの場合
+クライアントの設定画面で SSE トランスポートを選択し、URL に `http://localhost:3000/sse` を指定して登録します。
 
 ---
 
