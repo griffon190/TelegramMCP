@@ -214,7 +214,7 @@ app.get("/sse", async (req, res) => {
     const host = (req.headers["x-forwarded-host"] as string) || req.get("host");
     const messageUrl = `${protocol}://${host}/messages`;
 
-    // res.writeをオーバーライドして、データ書き換えとパディング付与を自動化
+    // res.writeをオーバーライドして、絶対URLへのデータ書き換えのみを実行する
     const originalWrite = res.write.bind(res);
     res.write = (chunk: any, encoding?: any, callback?: any) => {
       let dataStr = "";
@@ -234,10 +234,8 @@ app.get("/sse", async (req, res) => {
         chunk = isBuffer ? Buffer.from(dataStr, "utf8") : dataStr;
       }
 
-      const result = originalWrite(chunk, encoding, callback);
-      // プロキシ의 バッファを押し出しつつ、パーサーを壊さない1KBのパディング
-      originalWrite(":" + " ".repeat(1024) + "\n\n");
-      return result;
+      // 余計なダミーデータは追加せず、書き換えた元のデータのみを送信する
+      return originalWrite(chunk, encoding, callback);
     };
 
     console.error(`Message endpoint set to: ${messageUrl}`);
@@ -250,9 +248,6 @@ app.get("/sse", async (req, res) => {
     });
 
     await server.connect(transport);
-
-    // 接続が確立された「後」に、初期接続を確立するためのパディングを即時送信
-    res.write(":");
   } catch (error) {
     console.error("Error in /sse handler:", error);
     if (!res.headersSent) {
