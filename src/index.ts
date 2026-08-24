@@ -208,6 +208,7 @@ app.get("/sse", async (req, res) => {
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no");
+    res.setHeader("Content-Encoding", "identity");
 
     // Dynamically resolve protocol and host for absolute URL resolution
     const protocol = (req.headers["x-forwarded-proto"] as string) || req.protocol;
@@ -226,6 +227,9 @@ app.get("/sse", async (req, res) => {
     });
 
     await server.connect(transport);
+
+    // Googleのパーサーを壊さずにバッファを押し出すため、改行コードのみのパディングを安全に送信
+    res.write("\n".repeat(100));
   } catch (error) {
     console.error("Error in /sse handler:", error);
     if (!res.headersSent) {
