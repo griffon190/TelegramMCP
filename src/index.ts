@@ -195,33 +195,37 @@ const transports: Record<string, SSEServerTransport> = {};
 app.get("/sse", async (req, res) => {
   console.error("New SSE connection request received");
 
-  // Prevent proxies (like Nginx on Render.com) from buffering the event stream
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache, no-transform");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
+  try {
+    // Prevent proxies (like Nginx on Render.com) from buffering the event stream
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
 
-  // Send headers immediately to client
-  res.flushHeaders();
+    // Send 2KB of dummy padding space (SSE comment) to bypass proxy buffering (Render/Cloudflare)
+    res.write(":" + " ".repeat(2048) + "\n\n");
 
-  // Send 2KB of dummy padding space (SSE comment) to bypass proxy buffering (Render/Cloudflare)
-  res.write(":" + " ".repeat(2048) + "\n\n");
+    // Dynamically resolve protocol and host for absolute URL resolution
+    const protocol = (req.headers["x-forwarded-proto"] as string) || req.protocol;
+    const host = (req.headers["x-forwarded-host"] as string) || req.get("host");
+    const messageUrl = `${protocol}://${host}/messages`;
 
-  // Dynamically resolve protocol and host for absolute URL resolution
-  const protocol = (req.headers["x-forwarded-proto"] as string) || req.protocol;
-  const host = (req.headers["x-forwarded-host"] as string) || req.get("host");
-  const messageUrl = `${protocol}://${host}/messages`;
+    console.error(`Message endpoint set to: ${messageUrl}`);
+    const transport = new SSEServerTransport(messageUrl, res);
+    transports[transport.sessionId] = transport;
 
-  console.error(`Message endpoint set to: ${messageUrl}`);
-  const transport = new SSEServerTransport(messageUrl, res);
-  transports[transport.sessionId] = transport;
+    res.on("close", () => {
+      console.error(`Session ${transport.sessionId} closed`);
+      delete transports[transport.sessionId];
+    });
 
-  res.on("close", () => {
-    console.error(`Session ${transport.sessionId} closed`);
-    delete transports[transport.sessionId];
-  });
-
-  await server.connect(transport);
+    await server.connect(transport);
+  } catch (error) {
+    console.error("Error in /sse handler:", error);
+    if (!res.headersSent) {
+      res.sendStatus(500);
+    }
+  }
 });
 
 app.post("/messages", async (req, res) => {
