@@ -201,6 +201,12 @@ app.get("/sse", async (req, res) => {
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
 
+  // Send headers immediately to client
+  res.flushHeaders();
+
+  // Send 2KB of dummy padding space (SSE comment) to bypass proxy buffering (Render/Cloudflare)
+  res.write(":" + " ".repeat(2048) + "\n\n");
+
   // Dynamically resolve protocol and host for absolute URL resolution
   const protocol = (req.headers["x-forwarded-proto"] as string) || req.protocol;
   const host = (req.headers["x-forwarded-host"] as string) || req.get("host");
