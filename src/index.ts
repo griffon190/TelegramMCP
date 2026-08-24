@@ -165,6 +165,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 const app = express();
 
+// Trust proxy headers from Render.com (crucial for protocol detection)
+app.set("trust proxy", true);
+
 // Enable CORS for MCP clients
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -185,6 +188,11 @@ const transports: Record<string, SSEServerTransport> = {};
 
 app.get("/sse", async (req, res) => {
   console.error("New SSE connection request received");
+
+  // Prevent proxies (like Nginx on Render.com) from buffering the event stream
+  res.setHeader("X-Accel-Buffering", "no");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
 
   // Dynamically resolve protocol and host for absolute URL resolution
   const protocol = (req.headers["x-forwarded-proto"] as string) || req.protocol;
