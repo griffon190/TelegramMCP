@@ -170,9 +170,15 @@ app.set("trust proxy", true);
 
 // Enable CORS for MCP clients
 app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  } else {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
   if (req.method === "OPTIONS") {
     res.sendStatus(200);
     return;
@@ -190,9 +196,10 @@ app.get("/sse", async (req, res) => {
   console.error("New SSE connection request received");
 
   // Prevent proxies (like Nginx on Render.com) from buffering the event stream
-  res.setHeader("X-Accel-Buffering", "no");
-  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
 
   // Dynamically resolve protocol and host for absolute URL resolution
   const protocol = (req.headers["x-forwarded-proto"] as string) || req.protocol;
