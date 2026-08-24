@@ -1,0 +1,22 @@
+{
+  "name": "telegram-mcp-server",
+  "version": "1.0.0",
+  "description": "Telegram MCP Server for Gemini Spark and other clients",
+  "main": "build/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.4.1",
+    "dotenv": "^16.4.5",
+    "node-telegram-bot-api": "^0.66.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "@types/node-telegram-bot-api": "^0.64.4",
+    "typescript": "^5.3.3"
+  }
+}
