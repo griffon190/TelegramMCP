@@ -242,17 +242,17 @@ app.get("/sse", async (req, res) => {
     const transport = new SSEServerTransport(messageUrl, res);
     transports[transport.sessionId] = transport;
 
-    // SDKがヘッダーを書き込み終わった「直後」に、即座にヘッダーを強制送出（フラッシュ）する
-    if (typeof res.flushHeaders === "function") {
-      res.flushHeaders();
-    }
-
     res.on("close", () => {
       console.error(`Session ${transport.sessionId} closed`);
       delete transports[transport.sessionId];
     });
 
     await server.connect(transport);
+
+    // 接続が確立され、初期メッセージ（endpointイベント）が書き込まれた「直後」に強制フラッシュする
+    if (typeof res.flushHeaders === "function") {
+      res.flushHeaders();
+    }
   } catch (error) {
     console.error("Error in /sse handler:", error);
     if (!res.headersSent) {
