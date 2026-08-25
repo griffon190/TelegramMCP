@@ -242,6 +242,11 @@ app.get("/sse", async (req, res) => {
     const transport = new SSEServerTransport(messageUrl, res);
     transports[transport.sessionId] = transport;
 
+    // SDKがヘッダーを書き込み終わった「直後」に、即座にヘッダーを強制送出（フラッシュ）する
+    if (typeof res.flushHeaders === "function") {
+      res.flushHeaders();
+    }
+
     res.on("close", () => {
       console.error(`Session ${transport.sessionId} closed`);
       delete transports[transport.sessionId];
