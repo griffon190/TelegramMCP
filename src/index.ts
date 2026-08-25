@@ -215,7 +215,28 @@ app.get("/sse", async (req, res) => {
     const host = (req.headers["x-forwarded-host"] as string) || req.get("host");
     const messageUrl = `${protocol}://${host}/messages`;
 
+    // res.writeをオーバーライドして、絶対URLへのデータ書き換えのみを実行する（パディングは送らない）
+    const originalWrite = res.write.bind(res);
+    res.write = (chunk: any, encoding?: any, callback?: any) => {
+      let dataStr = "";
+      let isBuffer = false;
+      
+      if (typeof chunk === "string") {
+        dataStr = chunk;
+      } else if (Buffer.isBuffer(chunk)) {
+        dataStr = chunk.toString("utf8");
+        isBuffer = true;
+      }
 
+      // 相対URL (/messages) を完全な絶対URL (https://.../messages) に強制書き換えするハック
+      if (dataStr.includes("event: endpoint") && dataStr.includes("data: /messages")) {
+        console.error("Rewriting endpoint event from relative path to absolute URL");
+        dataStr = dataStr.replace("data: /messages", `data: ${messageUrl}`);
+        chunk = isBuffer ? Buffer.from(dataStr, "utf8") : dataStr;
+      }
+
+      return originalWrite(chunk, encoding, callback);
+    };
 
     console.error(`Message endpoint set to: ${messageUrl}`);
     const transport = new SSEServerTransport(messageUrl, res);
