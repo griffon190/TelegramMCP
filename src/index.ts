@@ -227,9 +227,6 @@ app.get("/sse", async (req, res) => {
     });
 
     await server.connect(transport);
-
-    // Googleのパーサーを壊さずにバッファを押し出すため、改行コードのみのパディングを安全に送信
-    res.write("\n".repeat(100));
   } catch (error) {
     console.error("Error in /sse handler:", error);
     if (!res.headersSent) {
